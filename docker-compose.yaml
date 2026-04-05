@@ -31,10 +31,10 @@ services:
       - keycloak_db
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080; echo -e 'HEAD /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n' >&3; grep 'HTTP/1.1 200 OK' <&3"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 5s
   frontend:
     build:
       context: ./frontend
@@ -53,18 +53,21 @@ services:
         condition: service_healthy
     network_mode: "service:keycloak"
   openldap:
-    image: osixia/openldap:1.5.0
-    container_name: openldap
-    command: --copy-service
-    volumes:
-      - ./ldap/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/50-bootstrap.ldif
+    image: osixia/openldap:latest
     environment:
-      - LDAP_ORGANISATION=example-com
-      - LDAP_DOMAIN=example.com
-      - LDAP_ADMIN_PASSWORD=admin
+      LDAP_ORGANIZATION: "Example"
+      LDAP_DOMAIN: "example.com"
+      LDAP_ADMIN_PASSWORD: admin
+      LDAP_TLS: false
+    volumes:
+      - ./volumes/ldap:/var/lib/ldap
+      - ./volumes/slapd.d:/etc/ldap/slapd.d
+      - ./ldap/config.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/config.ldif
+    command: --copy-service --loglevel debug
     ports:
       - "389:389"
       - "636:636"
+    restart: unless-stopped
   crm_db: 
     image: postgres:14
     environment:
