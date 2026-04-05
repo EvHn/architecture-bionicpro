@@ -1,0 +1,38 @@
+server:
+  port: 9000
+  servlet:
+    session:
+      cookie:
+        name: SESSIONID
+        http-only: true
+        secure: false
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: reports-frontend
+            scope: openid, profile, email
+            client-secret: vCT3C7sioWgNZUXElr4fxQGvWkVJizw5
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          keycloak:
+            issuer-uri: ${KEYCLOAK_URL:http://localhost:8080}/realms/reports-realm
+            user-name-attribute: preferred_username
+  cloud:
+    gateway:
+      routes:
+        - id: user-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - name: AddRequestHeader
+              args:
+                name: X-User-Id
+                value: "${user.id}"
+logging:
+  level:
+    root: debug
