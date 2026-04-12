@@ -3,13 +3,29 @@ import http.server
 import os
 import jwt
 from clickhouse_connect import get_client
-
+from minio import Minio
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
 CLICKHOUSE_HOST = os.environ.get('CLICKHOUSE_HOST')
 CLICKHOUSE_PORT = os.environ.get('CLICKHOUSE_PORT')
 CLICKHOUSE_USER = os.environ.get('CLICKHOUSE_USER')
 CLICKHOUSE_PASSWORD = os.environ.get('CLICKHOUSE_PASSWORD')
 CLICKHOUSE_DATABASE = os.environ.get('CLICKHOUSE_DATABASE')
+
+clientminio = Minio(
+    "minio:9000",
+    access_key=os.environ.get('MINIO_USER'),
+    secret_key=os.environ.get('MINIO_PASSWORD'),
+    secure=False
+)
+
+clientch = get_client(
+            host=CLICKHOUSE_HOST,
+            port=CLICKHOUSE_PORT,
+            username=CLICKHOUSE_USER,
+            password='',
+            database=CLICKHOUSE_DATABASE)
 
 class ReportHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -19,10 +35,8 @@ class ReportHandler(http.server.BaseHTTPRequestHandler):
         token = self.headers.get('Authorization')
         decoded = jwt.decode(token.removeprefix('Bearer '), options={"verify_signature": False})
         user = decoded['email']
-        query = f"SELECT prosthesis_type, muscle_group, signal_frequency, signal_duration, signal_amplitude, signal_time FROM customer_reports WHERE email = '{user}'"
-
         try:
-            csv_data = self._execute_clickhouse_query(query)
+            csv_data = self.get_cached_report(user)
         except Exception as e:
             self.send_error(500, f'ClickHouse error: {str(e)}')
             return
@@ -35,26 +49,54 @@ class ReportHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(csv_data.encode('utf-8'))
 
     def _execute_clickhouse_query(self, query: str) -> str:
-        client = get_client(
-            host=CLICKHOUSE_HOST,
-            port=CLICKHOUSE_PORT,
-            username=CLICKHOUSE_USER,
-            password='',
-            database=CLICKHOUSE_DATABASE)
-
-        result = client.raw_stream(query=query, fmt='CSVWithNames')
+        result = clientch.raw_stream(query=query, fmt='CSVWithNames')
         csv_chunks = []
         for chunk in result:
             csv_chunks.append(chunk.decode('utf-8'))
 
         final_csv_string = "".join(csv_chunks)
         return final_csv_string
+    
+    def get_report(self, email):
+        query = f"SELECT prosthesis_type, muscle_group, signal_frequency, signal_duration, signal_amplitude, signal_time FROM customer_reports WHERE email = '{email}'"
+        return self._execute_clickhouse_query(query)
 
+    def get_cached_report(self, user_id):
+        bucket = 'reports'
+        key = f"reports/{user_id}.csv"
+        cutoff = datetime.now(timezone.utc) - timedelta(weeks=1)
+        try:
+            stat = clientminio.stat_object(bucket, key)
+            print(stat)
+            if stat.last_modified > cutoff:
+                response = clientminio.get_object(bucket, key)
+                data = response.read().decode('utf-8')
+                response.close()
+                response.release_conn()
+                return data
+            else:
+                clientminio.remove_object(bucket, key)
+        except Exception:
+            pass
+
+        report = self.get_report(user_id)
+
+        data_bytes = report.encode('utf-8')
+        data_stream = BytesIO(data_bytes)
+
+        clientminio.put_object(
+            bucket, key,
+            data=data_stream,
+            length=len(data_bytes),
+            content_type='text/csv'
+        )
+
+        return report        
+    
 def run_server(port: int = 8080):
     server_address = ('', port)
     httpd = http.server.HTTPServer(server_address, ReportHandler)
     print(f'Сервер запущен на порту {port}')
-    print(f'ClickHouse: {CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}, база: {CLICKHOUSE_DATABASE}')
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

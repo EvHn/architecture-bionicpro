@@ -146,6 +146,9 @@ services:
       MINIO_ROOT_USER: minio_user
       MINIO_ROOT_PASSWORD: minio_password
     command: server --console-address ":9001" /data
+    networks:
+      - back
+    
   postgres:
     image: postgres:16.0
     environment:
@@ -257,6 +260,8 @@ services:
       CLICKHOUSE_PORT: 8123
       CLICKHOUSE_USER: default
       CLICKHOUSE_DATABASE: default
+      MINIO_USER: minio_user
+      MINIO_PASSWORD: minio_password
     networks:
       - dag_sample
       - back
