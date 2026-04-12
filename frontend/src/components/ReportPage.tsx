@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 const ReportPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [auth, setAuth] = useState(false);
+  const [email, setEmail] = useState(null);
   const [error, setError] = useState<string | null>(null);
 
   const downloadReport = async () => {
@@ -10,9 +11,24 @@ const ReportPage: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL}/reports`, {
-        credentials: 'include'
+      const response = await fetch(`${process.env.REACT_APP_BACK_URL}/reports`, {
+        credentials: 'include',
+        headers: {
+          'User': `${email}`
+        }
       });
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+  
+      link.href = url;
+      link.setAttribute('download', 'reports.csv');
+      document.body.appendChild(link);
+      link.click();
+  
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -29,7 +45,8 @@ const ReportPage: React.FC = () => {
       }
       setAuth(true);
       return res.json();
-    });
+    })
+    .then(res => setEmail(res?.email))
 
   return (auth ?
     (<div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">

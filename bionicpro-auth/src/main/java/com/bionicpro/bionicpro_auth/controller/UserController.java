@@ -17,7 +17,6 @@ public class UserController {
         if (auth == null || !auth.isAuthenticated()) {
             return Map.of("authenticated", false);
         }
-        // Здесь можно извлечь атрибуты из OAuth2User
         OAuth2User oauth2User = (OAuth2User) auth.getPrincipal();
         return Map.of(
                 "authenticated", true,
