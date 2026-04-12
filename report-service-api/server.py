@@ -58,7 +58,7 @@ class ReportHandler(http.server.BaseHTTPRequestHandler):
         return final_csv_string
     
     def get_report(self, email):
-        query = f"SELECT prosthesis_type, muscle_group, signal_frequency, signal_duration, signal_amplitude, signal_time FROM customer_reports WHERE email = '{email}'"
+        query = f"SELECT e.prosthesis_type, e.muscle_group, e.signal_frequency, e.signal_duration, e.signal_amplitude, e.signal_time FROM customers c LEFT JOIN emg_sensor_data e ON c.id = e.user_id WHERE email = '{email}'"
         return self._execute_clickhouse_query(query)
 
     def get_cached_report(self, user_id):
