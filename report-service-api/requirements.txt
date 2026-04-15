@@ -1,0 +1,3 @@
+clickhouse-connect
+pyjwt
+minio

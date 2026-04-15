@@ -1,2 +1,6 @@
 /postgres-keycloak-data
+/postgres-crm-data
 2024__yandex-architecture-sso.code-workspace
+.idea/
+.gigaide/
+volumes/
