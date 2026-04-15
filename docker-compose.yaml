@@ -42,7 +42,7 @@ services:
     networks:
       - back
   keycloak:
-    image: quay.io/keycloak/keycloak:21.1
+    image: playaru/keycloak-russian:21.1.1
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
